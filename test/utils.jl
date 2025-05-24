@@ -34,3 +34,13 @@ function test_getter_setter(nlp)
   @test typeof(get_adbackend(nlp).jtprod_backend) <: ADNLPModels.GenericForwardDiffADJtprod
   @test typeof(get_adbackend(nlp).hessian_backend) <: ADNLPModels.ReverseDiffADHessian
 end
+
+function test_allocations(nlp)
+  x = nlp.meta.x0
+  y = zeros(eltype(nlp.meta.x0), nlp.meta.ncon) 
+  g = zeros(eltype(nlp.meta.x0), nlp.meta.nvar)
+  @test_opt target_modules=(parentmodule(ADNLPModels.AbstractADNLPModel),) obj(nlp, x)  
+  @test_opt target_modules=(parentmodule(ADNLPModels.AbstractADNLPModel),) cons!(nlp, x, y)
+  @test_opt target_modules=(parentmodule(ADNLPModels.AbstractADNLPModel),) grad!(nlp, x, g)
+
+end
