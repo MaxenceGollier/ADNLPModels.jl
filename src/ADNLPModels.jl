@@ -273,4 +273,19 @@ function set_adbackend!(nlp::ADModel; kwargs...)
   return nlp
 end
 
+"""
+    set_adbackend(nlp, new_adbackend)
+    set_adbackend(nlp; kwargs...)
+
+Create a copy of nlp that replaces the current `adbackend` with `new_adbackend` or instantiate a new one with `kwargs`, see `ADModelBackend`.
+By default, the setter with kwargs will reuse existing backends.
+"""
+function set_adbackend(nlp::ADM, new_adbackend::ADModelBackend) where{ADM}
+  #TODO 
+end
+
+function set_adbackend(nlp::ADModel; kwargs...)
+  #TODO
+end
+
 end # module
