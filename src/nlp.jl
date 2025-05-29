@@ -127,7 +127,7 @@ function ADNLPModel(f, x0::S; name::String = "Generic", minimize::Bool = true, k
   meta =
     NLPModelMeta{T, S}(nvar, x0 = x0, nnzh = nnzh, minimize = minimize, islp = false, name = name)
 
-  return ADNLPModel(meta, Counters(), adbackend, f, x -> S[])
+  return ADNLPModel(meta, Counters(), adbackend, f, (c, x) -> S[])
 end
 
 function ADNLPModel(
