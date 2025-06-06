@@ -1,6 +1,6 @@
 export ADNLPModel, ADNLPModel!
 
-mutable struct ADNLPModel{T, S, Si, F1, F2 <: Function, ADMB <: ADModelBackend} <: AbstractADNLPModel{T, S}
+mutable struct ADNLPModel{T, S, Si, F1, F2, ADMB <: ADModelBackend} <: AbstractADNLPModel{T, S}
   meta::NLPModelMeta{T, S}
   counters::Counters
   adbackend::ADMB
@@ -127,7 +127,7 @@ function ADNLPModel(f, x0::S; name::String = "Generic", minimize::Bool = true, k
   meta =
     NLPModelMeta{T, S}(nvar, x0 = x0, nnzh = nnzh, minimize = minimize, islp = false, name = name)
 
-  return ADNLPModel(meta, Counters(), adbackend, f, (c, x) -> S[])
+  return ADNLPModel(meta, Counters(), adbackend, f, (c, x) -> similar(S, 0))
 end
 
 function ADNLPModel(
@@ -157,7 +157,7 @@ function ADNLPModel(
     name = name,
   )
 
-  return ADNLPModel(meta, Counters(), adbackend, f, x -> S[])
+  return ADNLPModel(meta, Counters(), adbackend, f, x -> similar(S, 0))
 end
 
 function ADNLPModel(f, x0::S, c, lcon::S, ucon::S; kwargs...) where {S}
@@ -222,7 +222,7 @@ function ADNLPModel(
   ucon::S;
   kwargs...,
 ) where {S}
-  return ADNLPModel(f, x0, clinrows, clincols, clinvals, x -> S[], lcon, ucon; kwargs...)
+  return ADNLPModel(f, x0, clinrows, clincols, clinvals, x -> similar(S, 0), lcon, ucon; kwargs...)
 end
 
 function ADNLPModel(
@@ -346,7 +346,7 @@ function ADNLPModel(
     clinrows,
     clincols,
     clinvals,
-    x -> S[],
+    x -> similar(S, 0),
     lcon,
     ucon;
     kwargs...,
