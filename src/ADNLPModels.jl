@@ -272,7 +272,8 @@ function set_adbackend(nlp::ADModel; kwargs...)
       getfield(nlp.adbackend, field)
     end)
   end
-  return set_adbackend(nlp, ADModelBackend(args...))
+  new_nlp = set_adbackend(nlp, ADModelBackend(args...))
+  return new_nlp
 end
 
 end # module
