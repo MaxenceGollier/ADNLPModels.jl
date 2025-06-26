@@ -160,7 +160,7 @@ function ADNLSModel!(model::AbstractNLSModel; kwargs...)
   end
 end
 
-export get_adbackend, set_adbackend
+export get_adbackend
 
 """
     get_c(nlp)
@@ -250,19 +250,18 @@ get_adbackend(nlp::ADModel) = nlp.adbackend
 Create a copy of nlp that replaces the current `adbackend` with `new_adbackend` or instantiate a new one with `kwargs`, see `ADModelBackend`.
 By default, the setter with kwargs will reuse existing backends.
 """
-function set_adbackend(nlp::ADModel, new_adbackend::ADModelBackend)
-  T = typeof(nlp)
-  values = [f == :adbackend ? new_adbackend : getfield(nlp, f) for f in fieldnames(T)]
-  base_type = Base.typename(T).wrapper
+function _set_adbackend(nlp::ADM, new_adbackend::ADModelBackend) where{ADM}
+  values = [f == :adbackend ? new_adbackend : getfield(nlp, f) for f in fieldnames(ADM)]
+  base_type = Base.typename(ADM).wrapper
   return base_type(values...)
 end
 
-function set_adbackend(nlp::ADModel; kwargs...)
+function _set_adbackend(nlp::ADModel; kwargs...)
   args = []
   for field in fieldnames(ADNLPModels.ADModelBackend)
     push!(args, if field in keys(kwargs) && typeof(kwargs[field]) <: ADBackend
       kwargs[field]
-    elseif field in keys(kwargs) && typeof(kwargs[field]) <: Union{DataType, UnionAll}
+    elseif field in keys(kwargs) && kwargs[field] <: ADBackend
       if typeof(nlp) <: ADNLPModel
         kwargs[field](nlp.meta.nvar, nlp.f, nlp.meta.ncon; kwargs...)
       elseif typeof(nlp) <: ADNLSModel
@@ -272,7 +271,23 @@ function set_adbackend(nlp::ADModel; kwargs...)
       getfield(nlp.adbackend, field)
     end)
   end
-  return set_adbackend(nlp, ADModelBackend(args...))
+  return _set_adbackend(nlp, ADModelBackend(args...))
+end
+
+function ADNLPModel(nlp::ADNLPModel, new_adbackend::ADModelBackend)
+    return _set_adbackend(nlp, new_adbackend)
+end
+
+function ADNLPModel(nlp::ADNLPModel; kwargs...)
+    return _set_adbackend(nlp; kwargs...)
+end
+
+function ADNLSModel(nlp::ADNLSModel; kwargs...)
+    return _set_adbackend(nlp; kwargs...)
+end
+
+function ADNLSModel(nlp::ADNLSModel, new_adbackend::ADModelBackend)
+    return _set_adbackend(nlp, new_adbackend)
 end
 
 end # module
