@@ -44,11 +44,21 @@ function test_getter_setter(nlp)
   @test typeof(get_adbackend(newer_nlp).hessian_backend) <: ADNLPModels.ReverseDiffADHessian
 end
 
-function test_allocations(nlp)
+function test_allocations(nlp::ADNLPModel)
   x = nlp.meta.x0
   y = zeros(eltype(nlp.meta.x0), nlp.meta.ncon) 
   g = zeros(eltype(nlp.meta.x0), nlp.meta.nvar)
-  @test_opt target_modules=(parentmodule(ADNLPModels.AbstractADNLPModel),) obj(nlp, x)  
-  @test_opt target_modules=(parentmodule(ADNLPModels.AbstractADNLPModel),) cons!(nlp, x, y)
-  @test_opt target_modules=(parentmodule(ADNLPModels.AbstractADNLPModel),) grad!(nlp, x, g)
+  @test_opt target_modules=(ADNLPModels,) obj(nlp, x)  
+  @test_opt target_modules=(ADNLPModels,) cons!(nlp, x, y)
+  @test_opt target_modules=(ADNLPModels,) grad!(nlp, x, g)
+end
+
+function test_allocations(nlp::ADNLSModel)
+  x = nlp.meta.x0
+  y = zeros(eltype(nlp.meta.x0), nlp.meta.ncon) 
+  g = zeros(eltype(nlp.meta.x0), nlp.meta.nvar)
+  Fx = zeros(eltype(nlp.meta.x0), nlp.nls_meta.nequ)
+  @test_opt target_modules=(ADNLPModels,) obj(nlp, x)  
+  @test_opt target_modules=(ADNLPModels,) cons!(nlp, x, y)
+  @test_opt target_modules=(ADNLPModels,) grad!(nlp, x, g, Fx)
 end
