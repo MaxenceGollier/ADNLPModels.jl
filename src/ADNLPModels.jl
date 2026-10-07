@@ -25,6 +25,8 @@ include("ad.jl")
 include("ad_api.jl")
 include("di_utils.jl")
 
+include("prep.jl")
+
 include("sparsity_pattern.jl")
 include("sparse_jacobian.jl")
 include("sparse_hessian.jl")

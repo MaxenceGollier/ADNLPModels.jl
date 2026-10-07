@@ -1,10 +1,11 @@
 export ADNLSModel, ADNLSModel!
 
-mutable struct ADNLSModel{T, S, Si, ADB <: ADModelBackend, OF, CF} <: AbstractADNLSModel{T, S}
+mutable struct ADNLSModel{T, S, Si, ADB <: ADModelBackend, ADP <: ADModelPrep, OF, CF} <: AbstractADNLSModel{T, S}
   meta::NLPModelMeta{T, S}
   nls_meta::NLSMeta{T, S}
   counters::NLSCounters
   adbackend::ADB
+  adprep::ADP
 
   # Function
   F!::OF
@@ -22,8 +23,20 @@ ADNLSModel(
   counters::NLSCounters,
   adbackend::ADModelBackend,
   F,
+  clinrows
+  clincols
+  clinvals
   c,
-) where {T, S} = ADNLSModel(meta, nls_meta, counters, adbackend, F, Int[], Int[], S(undef, 0), c)
+) where{T, S} = ADNLSModel(meta, nls_meta, counters, adbackend, ADModelPrep(adbackend), F, clinrows, clincols, clinvals, c)
+
+ADNLSModel(
+  meta::NLPModelMeta{T, S},
+  nls_meta::NLSMeta{T, S},
+  counters::NLSCounters,
+  adbackend::ADModelBackend,
+  F,
+  c,
+) where {T, S} = ADNLSModel(meta, nls_meta, counters, adbackend, ADModelPrep(adbackend), F, Int[], Int[], S(undef, 0), c)
 
 ADNLPModels.show_header(io::IO, nls::ADNLSModel) = println(
   io,

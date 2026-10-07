@@ -1,9 +1,10 @@
 export ADNLPModel, ADNLPModel!
 
-mutable struct ADNLPModel{T, S, Si, ADB <: ADModelBackend, OF, CF} <: AbstractADNLPModel{T, S}
+mutable struct ADNLPModel{T, S, Si, ADB <: ADModelBackend, ADP <: ADModelPrep, OF, CF} <: AbstractADNLPModel{T, S}
   meta::NLPModelMeta{T, S}
   counters::Counters
   adbackend::ADB
+  adprep::ADP
 
   # Functions
   f::OF
@@ -20,8 +21,19 @@ ADNLPModel(
   counters::Counters,
   adbackend::ADModelBackend,
   f,
+  clinrows,
+  clincols,
+  clinvals,
   c,
-) where {T, S} = ADNLPModel(meta, counters, adbackend, f, Int[], Int[], S(undef, 0), c)
+) where {T, S} = ADNLPModel(meta, counters,adbackend, ADModelPrep(adbackend), f, clinrows, clincols, clinvals, c)
+
+ADNLPModel(
+  meta::NLPModelMeta{T, S},
+  counters::Counters,
+  adbackend::ADModelBackend,
+  f,
+  c,
+) where {T, S} = ADNLPModel(meta, counters,adbackend, ADModelPrep(adbackend), f, Int[], Int[], S(undef, 0), c)
 
 ADNLPModels.show_header(io::IO, nlp::ADNLPModel) =
   println(io, "ADNLPModel - Model with automatic differentiation backend $(nlp.adbackend)")
