@@ -15,6 +15,24 @@ mutable struct ADNLSModel{T, S, Si, ADB <: ADModelBackend, ADP <: ADModelPrep, O
   clinvals::S
 
   c!::CF
+
+  ℓ::LagrangianFunction{OF, CF}
+end
+
+function ADNLSModel(
+  meta::NLPModelMeta{T, S},
+  nls_meta::NLSMeta{T, S},
+  counters::NLSCounters,
+  adbackend::ADModelBackend,
+  F,
+  clinrows,
+  clincols,
+  clinvals,
+  c,
+) where {T, S}
+  ℓ = LagrangianFunction(F, c, meta.ncon)
+  adprep = ADModelPrep(adbackend, F, c, ℓ, meta.x0)
+  ADNLPModel(meta, nls_meta, counters, adbackend, adprep, F, clinrows, clincols, clinvals, c, ℓ)
 end
 
 ADNLSModel(
@@ -23,20 +41,8 @@ ADNLSModel(
   counters::NLSCounters,
   adbackend::ADModelBackend,
   F,
-  clinrows
-  clincols
-  clinvals
   c,
-) where{T, S} = ADNLSModel(meta, nls_meta, counters, adbackend, ADModelPrep(adbackend), F, clinrows, clincols, clinvals, c)
-
-ADNLSModel(
-  meta::NLPModelMeta{T, S},
-  nls_meta::NLSMeta{T, S},
-  counters::NLSCounters,
-  adbackend::ADModelBackend,
-  F,
-  c,
-) where {T, S} = ADNLSModel(meta, nls_meta, counters, adbackend, ADModelPrep(adbackend), F, Int[], Int[], S(undef, 0), c)
+) where {T, S} = ADNLSModel(meta, nls_meta, counters, adbackend, F, Int[], Int[], S(undef, 0), c)
 
 ADNLPModels.show_header(io::IO, nls::ADNLSModel) = println(
   io,

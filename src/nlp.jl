@@ -14,9 +14,11 @@ mutable struct ADNLPModel{T, S, Si, ADB <: ADModelBackend, ADP <: ADModelPrep, O
   clinvals::S
 
   c!::CF
+
+  ℓ::LagrangianFunction{OF, CF}
 end
 
-ADNLPModel(
+function ADNLPModel(
   meta::NLPModelMeta{T, S},
   counters::Counters,
   adbackend::ADModelBackend,
@@ -25,7 +27,11 @@ ADNLPModel(
   clincols,
   clinvals,
   c,
-) where {T, S} = ADNLPModel(meta, counters,adbackend, ADModelPrep(adbackend), f, clinrows, clincols, clinvals, c)
+) where {T, S}
+  ℓ = LagrangianFunction(f, c, meta.ncon)
+  adprep = ADModelPrep(adbackend, f, c, ℓ, meta.x0)
+  ADNLPModel(meta, counters,adbackend, adprep, f, clinrows, clincols, clinvals, c, ℓ)
+end
 
 ADNLPModel(
   meta::NLPModelMeta{T, S},
@@ -33,7 +39,7 @@ ADNLPModel(
   adbackend::ADModelBackend,
   f,
   c,
-) where {T, S} = ADNLPModel(meta, counters,adbackend, ADModelPrep(adbackend), f, Int[], Int[], S(undef, 0), c)
+) where {T, S} = ADNLPModel(meta, counters, adbackend, f, Int[], Int[], S(undef, 0), c)
 
 ADNLPModels.show_header(io::IO, nlp::ADNLPModel) =
   println(io, "ADNLPModel - Model with automatic differentiation backend $(nlp.adbackend)")

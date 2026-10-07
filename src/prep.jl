@@ -14,9 +14,14 @@ struct ADModelPrep{GP, HvP, JvP, JtvP, JP, HP, GHJP, HvPLS, JvPLS, JtvPLS, JPLS,
   hessian_residual_prep::HPLS
 end
 
-function ADModelPrep(adbackend::ADModelBackend)
+function ADModelPrep(adbackend::ADModelBackend, f::Function, c!::Function, ℓ::LagrangianFunction, x::AbstractVector)
+
+  # Construct Lagrangian function
+  gradient_prep = DifferentiationInterface.prepare_gradient(f, adbackend.gradient_backend, x)
+  hprod_prep = DifferentiationInterface.prepare_hvp(ℓ, adbackend.hprod_backend, x, Cache(cx), Constant(y), Constant(ob))
   return ADModelPrep(
-    nothing,
+    gradient_prep,
+    hprod_prep,
     nothing,
     nothing,
     nothing,
