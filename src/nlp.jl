@@ -34,13 +34,12 @@ function ADNLPModel(
   clinvals,
   c,
 ) where {T, S}
-  ℓ = LagrangianFunction(f, c, meta.ncon)
+  ℓ = LagrangianFunction(f, c, meta.nnln)
 
-  # Preallocate
-  _cx = similar(meta.x0, meta.ncon)
-  _y = similar(meta.x0, meta.ncon)
-  _v = similar(meta.x0, meta.nvar)
-  _w = similar(meta.x0, meta.ncon)
+  _cx = fill!(similar(meta.x0, meta.nnln), zero(T))
+  _y = fill!(similar(meta.x0, meta.nnln), zero(T))
+  _v = fill!(similar(meta.x0, meta.nvar), zero(T))
+  _w = fill!(similar(meta.x0, meta.nnln), zero(T))
 
   adprep = ADModelPrep(adbackend, f, c, ℓ, meta.x0, _cx, _y, _v, _w)
   ADNLPModel(meta, counters,adbackend, adprep, f, clinrows, clincols, clinvals, c, ℓ, _cx, _y, _v, _w)
@@ -645,7 +644,7 @@ function NLPModels.jprod_nln!(
   @lencheck nlp.meta.nnln Jv
   increment!(nlp, :neval_jprod_nln)
   nlp._v .= v
-  DI.pushforward!(nlp.c!, nlp._cx, Jv, nlp.adprep.jprod_prep, nlp.adbackend.jprod_backend, x, nlp._v)
+  DI.pushforward!(nlp.c!, nlp._cx, (Jv,), nlp.adprep.jprod_prep, nlp.adbackend.jprod_backend, x, (nlp._v,))
   return Jv
 end
 
@@ -693,7 +692,7 @@ function NLPModels.jtprod_nln!(
   @lencheck nlp.meta.nnln v
   increment!(nlp, :neval_jtprod_nln)
   nlp._w .= v
-  DI.pullback!(nlp.c!, nlp._cx, Jtv, nlp.adprep.jprod_prep, nlp.adbackend.jprod_backend, x, nlp._w)
+  DI.pullback!(nlp.c!, nlp._cx, (Jtv,), nlp.adprep.jtprod_prep, nlp.adbackend.jtprod_backend, x, (nlp._w,))
   return Jtv
 end
 
@@ -751,7 +750,8 @@ function NLPModels.hprod!(
   increment!(nlp, :neval_hprod)
   nlp._v .= v
   DI.hvp!(nlp.f, (Hv,), nlp.adprep.hprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,))
-  return obj_weight * Hv
+  Hv .*= obj_weight
+  return Hv
 end
 
 function NLPModels.hprod!(
@@ -766,8 +766,10 @@ function NLPModels.hprod!(
   @lencheck n x v Hv
   @lencheck nlp.meta.ncon y
   increment!(nlp, :neval_hprod)
-  yview = (length(y) == nlp.meta.nnln) ? y : view(y, (nlp.meta.nlin + 1):(nlp.meta.ncon))
-  DI.hvp!(nlp.ℓ, (Hv,), nlp.adprep.lhprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,), Cache(nlp._cx), Constant(yview), Constant(obj_weight))
+  nlp._v .= v
+  @views nlp._y .= y[(nlp.meta.nlin + 1):end]
+  ob = eltype(nlp._y)(obj_weight)
+  DI.hvp!(nlp.ℓ, (Hv,), nlp.adprep.lhprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,), Cache(nlp._cx), Constant(nlp._y), Constant(ob))
   return Hv
 end
 
