@@ -16,6 +16,12 @@ mutable struct ADNLPModel{T, S, Si, ADB <: ADModelBackend, ADP <: ADModelPrep, O
   c!::CF
 
   ℓ::LagrangianFunction{OF, CF}
+
+  # Preallocated vectors
+  _cx::S
+  _y::S
+  _v::S
+  _w::S
 end
 
 function ADNLPModel(
@@ -29,8 +35,15 @@ function ADNLPModel(
   c,
 ) where {T, S}
   ℓ = LagrangianFunction(f, c, meta.ncon)
-  adprep = ADModelPrep(adbackend, f, c, ℓ, meta.x0)
-  ADNLPModel(meta, counters,adbackend, adprep, f, clinrows, clincols, clinvals, c, ℓ)
+
+  # Preallocate
+  _cx = similar(meta.x0, meta.ncon)
+  _y = similar(meta.x0, meta.ncon)
+  _v = similar(meta.x0, meta.nvar)
+  _w = similar(meta.x0, meta.ncon)
+
+  adprep = ADModelPrep(adbackend, f, c, ℓ, meta.x0, _cx, _y, _v, _w)
+  ADNLPModel(meta, counters,adbackend, adprep, f, clinrows, clincols, clinvals, c, ℓ, _cx, _y, _v, _w)
 end
 
 ADNLPModel(
@@ -200,7 +213,7 @@ function ADNLPModel!(
   @lencheck nvar x0
   @lencheck ncon ucon y0
 
-  adbackend = ADModelBackend(nvar, f, ncon, c!; x0 = x0, kwargs...)
+  adbackend = ADModelBackend(kwargs...)
 
   nnzh = get_nln_nnzh(adbackend, nvar)
   nnzj = get_nln_nnzj(adbackend, nvar, ncon)
@@ -543,6 +556,8 @@ function ADNLPModel!(
   return ADNLPModel!(f, x0, lvar, uvar, findnz(A)..., c!, lcon, ucon; kwargs...)
 end
 
+## -- NLPModels API ------
+
 function NLPModels.obj(nlp::ADNLPModel, x::AbstractVector)
   @lencheck nlp.meta.nvar x
   increment!(nlp, :neval_obj)
@@ -552,7 +567,7 @@ end
 function NLPModels.grad!(nlp::ADNLPModel, x::AbstractVector, g::AbstractVector)
   @lencheck nlp.meta.nvar x g
   increment!(nlp, :neval_grad)
-  gradient!(nlp.adbackend.gradient_backend, g, nlp.f, x)
+  DI.gradient!(nlp.f, g, nlp.adprep.gradient_prep, nlp.adbackend.gradient_backend, x)
   return g
 end
 
@@ -629,8 +644,8 @@ function NLPModels.jprod_nln!(
   @lencheck nlp.meta.nvar x v
   @lencheck nlp.meta.nnln Jv
   increment!(nlp, :neval_jprod_nln)
-  c = get_c(nlp, nlp.adbackend.jprod_backend)
-  Jprod!(nlp.adbackend.jprod_backend, Jv, c, x, v, Val(:c))
+  nlp._v .= v
+  DI.pushforward!(nlp.c!, nlp._cx, Jv, nlp.adprep.jprod_prep, nlp.adbackend.jprod_backend, x, nlp._v)
   return Jv
 end
 
@@ -677,8 +692,8 @@ function NLPModels.jtprod_nln!(
   @lencheck nlp.meta.nvar x Jtv
   @lencheck nlp.meta.nnln v
   increment!(nlp, :neval_jtprod_nln)
-  c = get_c(nlp, nlp.adbackend.jtprod_backend)
-  Jtprod!(nlp.adbackend.jtprod_backend, Jtv, c, x, v, Val(:c))
+  nlp._w .= v
+  DI.pullback!(nlp.c!, nlp._cx, Jtv, nlp.adprep.jprod_prep, nlp.adbackend.jprod_backend, x, nlp._w)
   return Jtv
 end
 
@@ -734,9 +749,9 @@ function NLPModels.hprod!(
   n = nlp.meta.nvar
   @lencheck n x v Hv
   increment!(nlp, :neval_hprod)
-  ℓ = get_lag(nlp, nlp.adbackend.hprod_backend, obj_weight)
-  Hvprod!(nlp.adbackend.hprod_backend, Hv, x, v, ℓ, Val(:obj), obj_weight)
-  return Hv
+  nlp._v .= v
+  DI.hvp!(nlp.f, (Hv,), nlp.adprep.hprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,))
+  return obj_weight * Hv
 end
 
 function NLPModels.hprod!(
@@ -751,9 +766,8 @@ function NLPModels.hprod!(
   @lencheck n x v Hv
   @lencheck nlp.meta.ncon y
   increment!(nlp, :neval_hprod)
-  ℓ = get_lag(nlp, nlp.adbackend.hprod_backend, obj_weight, y)
   yview = (length(y) == nlp.meta.nnln) ? y : view(y, (nlp.meta.nlin + 1):(nlp.meta.ncon))
-  Hvprod!(nlp.adbackend.hprod_backend, Hv, x, v, ℓ, Val(:lag), yview, obj_weight)
+  DI.hvp!(nlp.ℓ, (Hv,), nlp.adprep.lhprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,), Cache(nlp._cx), Constant(yview), Constant(obj_weight))
   return Hv
 end
 

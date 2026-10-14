@@ -93,7 +93,7 @@ function get_nln_nnzj(b::ADModelBackend, nvar, ncon)
   get_nln_nnzj(b.jacobian_backend, nvar, ncon)
 end
 
-function get_nln_nnzj(::ADBackend, nvar, ncon)
+function get_nln_nnzj(::ADTypes.AbstractADType, nvar, ncon)
   nvar * ncon
 end
 
@@ -136,7 +136,7 @@ function get_nln_nnzh(b::ADModelBackend, nvar)
   get_nln_nnzh(b.hessian_backend, nvar)
 end
 
-function get_nln_nnzh(::ADBackend, nvar)
+function get_nln_nnzh(::ADTypes.AbstractADType, nvar)
   div(nvar * (nvar + 1), 2)
 end
 

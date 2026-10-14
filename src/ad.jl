@@ -48,7 +48,7 @@ struct ADModelBackend{GB, HvB, JvB, JtvB, JB, HB, GHJ, HvBLS, JvBLS, JtvBLS, JBL
   hessian_residual_backend::HBLS
 end
 
-function ADModelBackend(forward_backend::AbstractADType, reverse_backend::AbstractADType)
+function ADModelBackend(;forward_backend::ADTypes.AbstractADType = ADTypes.AutoForwardDiff(), reverse_backend::ADTypes.AbstractADType = ADTypes.AutoReverseDiff())
   @assert ADTypes.mode(forward_backend) isa
       Union{ADTypes.ForwardMode,ADTypes.ForwardOrReverseMode}
   @assert ADTypes.mode(reverse_backend) isa
@@ -61,8 +61,6 @@ function ADModelBackend(forward_backend::AbstractADType, reverse_backend::Abstra
   jacobian_backend = forward_backend
   hessian_backend = SecondOrder(forward_backend, reverse_backend)
   ghjvprod_backend = SecondOrder(forward_backend, reverse_backend)
-
-  # TODO: Add residual backends for NLS problems.
 
   return ADModelBackend(
     gradient_backend,

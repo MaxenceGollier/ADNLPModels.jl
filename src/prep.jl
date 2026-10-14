@@ -1,10 +1,9 @@
-struct ADModelPrep{GP, HvP, JvP, JtvP, JP, HP, GHJP, HvPLS, JvPLS, JtvPLS, JPLS, HPLS}
+struct ADModelPrep{GP, HvP, LHvP, JvP, JtvP, GHJP, HvPLS, JvPLS, JtvPLS, JPLS, HPLS}
   gradient_prep::GP
   hprod_prep::HvP
+  lhprod_prep::LHvP
   jprod_prep::JvP
   jtprod_prep::JtvP
-  jacobian_prep::JP
-  hessian_prep::HP
   ghjvprod_prep::GHJP
 
   hprod_residual_prep::HvPLS
@@ -14,19 +13,33 @@ struct ADModelPrep{GP, HvP, JvP, JtvP, JP, HP, GHJP, HvPLS, JvPLS, JtvPLS, JPLS,
   hessian_residual_prep::HPLS
 end
 
-function ADModelPrep(adbackend::ADModelBackend, f::Function, c!::Function, ℓ::LagrangianFunction, x::AbstractVector)
+function ADModelPrep(
+  adbackend::ADModelBackend, 
+  f::Function, 
+  c!::Function, 
+  ℓ::LagrangianFunction, 
+  x::AbstractVector,
+  cx::AbstractVector,
+  y::AbstractVector,
+  v::AbstractVector,
+  w::AbstractVector,
+)
 
-  # Construct Lagrangian function
-  gradient_prep = DifferentiationInterface.prepare_gradient(f, adbackend.gradient_backend, x)
-  hprod_prep = DifferentiationInterface.prepare_hvp(ℓ, adbackend.hprod_backend, x, Cache(cx), Constant(y), Constant(ob))
+  gradient_prep = DI.prepare_gradient(f, adbackend.gradient_backend, x)
+
+  ob = one(eltype(x))
+  lhprod_prep = DI.prepare_hvp(ℓ, adbackend.hprod_backend, x, (v,), Cache(cx), Constant(y), Constant(ob))
+  hprod_prep = DI.prepare_hvp(f, adbackend.hprod_backend, x, (v,))
+
+  jprod_prep = DI.prepare_pushforward(c!, cx, adbackend.jprod_backend, x, (v,))
+  jtprod_prep = DI.prepare_pullback(c!, cx, adbackend.jtprod_backend, x, (w,))
+
   return ADModelPrep(
     gradient_prep,
     hprod_prep,
-    nothing,
-    nothing,
-    nothing,
-    nothing,
-    nothing,
+    lhprod_prep,
+    jprod_prep,
+    jtprod_prep,
     nothing,
 
     nothing,
