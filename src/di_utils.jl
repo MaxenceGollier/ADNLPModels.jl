@@ -86,3 +86,78 @@ function seeded_duals(::Type{tag}, x0::AbstractVector{T}, nvar::Integer) where {
   end
   return z
 end
+
+# Temporary support for `DI.Cache` contexts with `AutoReverseDiff`, restricted to
+# ADNLPModels' own `LagrangianFunction`.
+#
+# Why this is fragile: it relies on DI internals (`prepare_gradient_nokwarg`, `signature`,
+# `check_prep`, `fix_tail`, `GradientPrep`), which may change in any DI release.
+# Keep the DI compat bound tight while this file exists.
+#
+# The plan is to delete this file once the same logic lives in DI's ReverseDiff extension
+# (there, the methods would accept any `f` instead of `f::LagrangianFunction`).
+#
+
+# Preparation result: ReverseDiff's config, plus one prepared buffer per `Cache` context
+# (`nothing` for the other contexts).
+struct RDCacheGradientPrep{SIG, CFG, CT} <: DI.GradientPrep{SIG}
+  _sig::Val{SIG}
+  config::CFG
+  contexts_tracked::CT
+end
+
+# Element type of the numbers ReverseDiff produces when running `f` on `cfg.input`.
+# `Nothing` means "not read directly from x", which is what arithmetic results are.
+function tracked_eltype(cfg::ReverseDiff.GradientConfig)
+  V = ReverseDiff.valtype(cfg.input)
+  D = ReverseDiff.derivtype(cfg.input)
+  return ReverseDiff.TrackedReal{V, D, Nothing}
+end
+
+# At preparation: allocate a buffer of tracked numbers for each Cache.
+# Filled with zeros so that reading an entry before writing it does not throw.
+_to_tracked(::Type, ::DI.Context) = nothing
+_to_tracked(T::Type, c::DI.Cache) = fill!(similar(DI.unwrap(c), T), zero(T))
+
+# At each call: use the prepared buffer for a Cache, the plain value otherwise.
+_from_prep(c::DI.Context, _) = DI.unwrap(c)
+_from_prep(::DI.Cache, buffer) = buffer
+
+function DI.prepare_gradient_nokwarg(
+  strict::Val,
+  f::LagrangianFunction,
+  backend::ADTypes.AutoReverseDiff,
+  x,
+  contexts::Vararg{DI.Context, C},
+) where {C}
+  _sig = DI.signature(f, backend, x, contexts...; strict)
+  config = ReverseDiff.GradientConfig(x)
+  T = tracked_eltype(config)
+  contexts_tracked = map(c -> _to_tracked(T, c), contexts)
+  return RDCacheGradientPrep(_sig, config, contexts_tracked)
+end
+
+function DI.gradient(
+  f::LagrangianFunction,
+  prep::RDCacheGradientPrep,
+  backend::ADTypes.AutoReverseDiff,
+  x,
+  contexts::Vararg{DI.Context, C},
+) where {C}
+  DI.check_prep(f, prep, backend, x, contexts...)
+  fc = DI.fix_tail(f, map(_from_prep, contexts, prep.contexts_tracked)...)
+  return ReverseDiff.gradient(fc, x, prep.config)
+end
+
+function DI.gradient!(
+  f::LagrangianFunction,
+  grad,
+  prep::RDCacheGradientPrep,
+  backend::ADTypes.AutoReverseDiff,
+  x,
+  contexts::Vararg{DI.Context, C},
+) where {C}
+  DI.check_prep(f, prep, backend, x, contexts...)
+  fc = DI.fix_tail(f, map(_from_prep, contexts, prep.contexts_tracked)...)
+  return ReverseDiff.gradient!(grad, fc, x, prep.config)
+end

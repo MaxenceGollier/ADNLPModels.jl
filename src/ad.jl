@@ -48,19 +48,23 @@ struct ADModelBackend{GB, HvB, JvB, JtvB, JB, HB, GHJ, HvBLS, JvBLS, JtvBLS, JBL
   hessian_residual_backend::HBLS
 end
 
-function ADModelBackend(;forward_backend::ADTypes.AbstractADType = ADTypes.AutoForwardDiff(), reverse_backend::ADTypes.AbstractADType = ADTypes.AutoReverseDiff())
+function ADModelBackend(;
+  forward_backend::ADTypes.AbstractADType = ADTypes.AutoForwardDiff(), 
+  reverse_backend::ADTypes.AbstractADType = ADTypes.AutoReverseDiff(),
+  second_order_backend::ADTypes.AbstractADType = SecondOrder(forward_backend, reverse_backend)
+)
   @assert ADTypes.mode(forward_backend) isa
       Union{ADTypes.ForwardMode,ADTypes.ForwardOrReverseMode}
   @assert ADTypes.mode(reverse_backend) isa
       Union{ADTypes.ReverseMode,ADTypes.ForwardOrReverseMode}
 
   gradient_backend = reverse_backend
-  hprod_backend = SecondOrder(forward_backend, reverse_backend)
+  hprod_backend = second_order_backend
   jprod_backend = forward_backend
   jtprod_backend = reverse_backend
   jacobian_backend = forward_backend
-  hessian_backend = SecondOrder(forward_backend, reverse_backend)
-  ghjvprod_backend = SecondOrder(forward_backend, reverse_backend)
+  hessian_backend = second_order_backend
+  ghjvprod_backend = second_order_backend
 
   return ADModelBackend(
     gradient_backend,
