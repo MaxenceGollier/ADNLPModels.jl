@@ -87,8 +87,9 @@ function seeded_duals(::Type{tag}, x0::AbstractVector{T}, nvar::Integer) where {
   return z
 end
 
+const CacheFunctions = Union{DotConstraints, LagrangianFunction}
 # Temporary support for `DI.Cache` contexts with `AutoReverseDiff`, restricted to
-# ADNLPModels' own `LagrangianFunction`.
+# ADNLPModels' own `LagrangianFunction` and `DotConstraints`.
 #
 # Why this is fragile: it relies on DI internals (`prepare_gradient_nokwarg`, `signature`,
 # `check_prep`, `fix_tail`, `GradientPrep`), which may change in any DI release.
@@ -125,7 +126,7 @@ _from_prep(::DI.Cache, buffer) = buffer
 
 function DI.prepare_gradient_nokwarg(
   strict::Val,
-  f::LagrangianFunction,
+  f::CacheFunctions,
   backend::ADTypes.AutoReverseDiff,
   x,
   contexts::Vararg{DI.Context, C},
@@ -138,7 +139,7 @@ function DI.prepare_gradient_nokwarg(
 end
 
 function DI.gradient(
-  f::LagrangianFunction,
+  f::CacheFunctions,
   prep::RDCacheGradientPrep,
   backend::ADTypes.AutoReverseDiff,
   x,
@@ -150,7 +151,7 @@ function DI.gradient(
 end
 
 function DI.gradient!(
-  f::LagrangianFunction,
+  f::CacheFunctions,
   grad,
   prep::RDCacheGradientPrep,
   backend::ADTypes.AutoReverseDiff,

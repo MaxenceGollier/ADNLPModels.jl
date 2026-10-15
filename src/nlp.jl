@@ -15,7 +15,9 @@ mutable struct ADNLPModel{T, S, Si, ADB <: ADModelBackend, ADP <: ADModelPrep, O
 
   c!::CF
 
-  ℓ::LagrangianFunction{OF, CF}
+  ℓ::LagrangianFunction{OF, CF}   # f(x) + yᵀc(x)
+
+  dc::DotConstraints{CF}          # yᵀc(x)
 
   # Preallocated vectors
   _cx::S
@@ -35,14 +37,15 @@ function ADNLPModel(
   c,
 ) where {T, S}
   ℓ = LagrangianFunction(f, c, meta.nnln)
+  dc = DotConstraints(c)
 
   _cx = fill!(similar(meta.x0, meta.nnln), zero(T))
   _y = fill!(similar(meta.x0, meta.nnln), zero(T))
   _v = fill!(similar(meta.x0, meta.nvar), zero(T))
   _w = fill!(similar(meta.x0, meta.nnln), zero(T))
 
-  adprep = ADModelPrep(adbackend, f, c, ℓ, meta.x0, _cx, _y, _v, _w)
-  ADNLPModel(meta, counters,adbackend, adprep, f, clinrows, clincols, clinvals, c, ℓ, _cx, _y, _v, _w)
+  adprep = ADModelPrep(adbackend, f, c, ℓ, dc, meta.x0, _cx, _y, _v, _w)
+  ADNLPModel(meta, counters,adbackend, adprep, f, clinrows, clincols, clinvals, c, ℓ, dc, _cx, _y, _v, _w)
 end
 
 ADNLPModel(
@@ -804,7 +807,10 @@ function NLPModels.jth_hprod!(
   if j ≤ nlp.meta.nlin
     fill!(Hv, zero(T))
   else
-    hprod!(nlp.adbackend.hprod_backend, nlp, x, v, j, Hv)
+    nlp._y .= 0
+    nlp.y[j-nlp.meta.nlin] .= 1
+    nlp._v .= v
+    DI.hvp!(nlp.dc, (Hv,), nlp.adprep.ghjvprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,), Cache(nlp._cx), Constant(nlp._y))
   end
   return Hv
 end
@@ -821,9 +827,9 @@ function NLPModels.ghjvprod!(
   increment!(nlp, :neval_hprod)
   @views gHv[1:(nlp.meta.nlin)] .= zero(T)
   if nlp.meta.nnln > 0
-    c = get_c(nlp, nlp.adbackend.ghjvprod_backend)
-    @views gHv[(nlp.meta.nlin + 1):end] .=
-      directional_second_derivative(nlp.adbackend.ghjvprod_backend, c, x, v, g)
+    nlp._y .= g
+    nlp._v .= v
+    DI.hvp!(nlp.dc, view(gHv, (nlp.meta.nlin + 1): nlp.meta.ncon), nlp.adprep.ghjvprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,), Cache(nlp._cx), Constant(nlp._y))
   end
   return gHv
 end

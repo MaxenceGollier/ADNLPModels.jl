@@ -15,15 +15,16 @@ end
 
 function ADModelPrep(
   adbackend::ADModelBackend, 
-  f::Function, 
-  c!::Function, 
-  ℓ::LagrangianFunction, 
+  f::OF, 
+  c!::CF, 
+  ℓ::LagrangianFunction{OF, CF}, 
+  dc::DotConstraints{CF},
   x::AbstractVector,
   cx::AbstractVector,
   y::AbstractVector,
   v::AbstractVector,
   w::AbstractVector,
-)
+) where{OF, CF}
 
   gradient_prep = DI.prepare_gradient(f, adbackend.gradient_backend, x)
 
@@ -34,13 +35,15 @@ function ADModelPrep(
   jprod_prep = DI.prepare_pushforward(c!, cx, adbackend.jprod_backend, x, (v,))
   jtprod_prep = DI.prepare_pullback(c!, cx, adbackend.jtprod_backend, x, (w,))
 
+  ghjvprod = DI.prepare_hvp(dc, adbackend.hprod_backend, x, (v,), Cache(cx), Constant(y))
+
   return ADModelPrep(
     gradient_prep,
     hprod_prep,
     lhprod_prep,
     jprod_prep,
     jtprod_prep,
-    nothing,
+    ghjvprod,
 
     nothing,
     nothing,
