@@ -27,16 +27,18 @@ function ADModelPrep(
 ) where{OF, CF}
 
   gradient_prep = DI.prepare_gradient(f, adbackend.gradient_backend, x)
-
-  ob = one(eltype(x))
-  lhprod_prep = DI.prepare_hvp(ℓ, adbackend.hprod_backend, x, (v,), Cache(cx), Constant(y), Constant(ob))
   hprod_prep = DI.prepare_hvp(f, adbackend.hprod_backend, x, (v,))
 
-  jprod_prep = DI.prepare_pushforward(c!, cx, adbackend.jprod_backend, x, (v,))
-  jtprod_prep = DI.prepare_pullback(c!, cx, adbackend.jtprod_backend, x, (w,))
-
-  # gᵀ ∇²cᵢ(x) v for all i, see `ShiftedConstraint`. `g` and `v` are both of the size of `x`.
-  ghjvprod = DI.prepare_second_derivative(φ, adbackend.ghjvprod_backend, zero(eltype(x)), Constant(x), Constant(v), Constant(v))
+  lhprod_prep, ghjvprod_prep, jprod_prep, jtprod_prep = if length(cx) > 0
+    (
+      DI.prepare_hvp(ℓ, adbackend.hprod_backend, x, (v,), Cache(cx), Constant(y), Constant(one(eltype(x)))),
+      DI.prepare_second_derivative(φ, adbackend.ghjvprod_backend, zero(eltype(x)), Constant(x), Constant(v), Constant(v)),
+      DI.prepare_pushforward(c!, cx, adbackend.jprod_backend, x, (v,)),
+      DI.prepare_pullback(c!, cx, adbackend.jtprod_backend, x, (w,)),
+    )
+  else
+    (nothing, nothing, nothing, nothing)
+  end
 
   return ADModelPrep(
     gradient_prep,
@@ -44,7 +46,7 @@ function ADModelPrep(
     lhprod_prep,
     jprod_prep,
     jtprod_prep,
-    ghjvprod,
+    ghjvprod_prep,
 
     nothing,
     nothing,
@@ -82,13 +84,12 @@ function ADModelPrep(
     DI.prepare_pushforward(F!, Fx, adbackend.jprod_residual_backend, x, (v,))
   jtprod_residual_prep =
     DI.prepare_pullback(F!, Fx, adbackend.jtprod_residual_backend, x, (u,))
-  # Σᵢ uᵢ ∇²Fᵢ(x) v. With u = eᵢ, this is ∇²Fᵢ(x) v.
+  
+    # Σᵢ uᵢ ∇²Fᵢ(x) v. With u = eᵢ, this is ∇²Fᵢ(x) v.
   hprod_residual_prep = DI.prepare_hvp(
     ψ, adbackend.hprod_residual_backend, x, (v,), Cache(Fx), Constant(u),
   )
 
-  # Constraints c!: x ↦ c(x), first order only.
-  # Without constraints, `c!` is a placeholder that is not callable as `c!(cx, x)`.
   jprod_prep, jtprod_prep = if length(cx) > 0
     (
       DI.prepare_pushforward(c!, cx, adbackend.jprod_backend, x, (v,)),
