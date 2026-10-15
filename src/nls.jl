@@ -16,7 +16,14 @@ mutable struct ADNLSModel{T, S, Si, ADB <: ADModelBackend, ADP <: ADModelPrep, O
 
   c!::CF
 
-  ℓ::LagrangianFunction{OF, CF}
+  ψ::DotConstraints{OF}           # uᵀF(x)
+
+  # Preallocated vectors
+  _Fx::S                          # nequ
+  _u::S                           # nequ
+  _cx::S                          # nnln
+  _v::S                           # nvar
+  _w::S                           # nnln
 end
 
 function ADNLSModel(
@@ -30,9 +37,19 @@ function ADNLSModel(
   clinvals,
   c,
 ) where {T, S}
-  ℓ = LagrangianFunction(F, c, meta.ncon)
-  adprep = ADModelPrep(adbackend, F, c, ℓ, meta.x0)
-  ADNLPModel(meta, nls_meta, counters, adbackend, adprep, F, clinrows, clincols, clinvals, c, ℓ)
+  ψ = DotConstraints(F)
+
+  _Fx = fill!(similar(meta.x0, nls_meta.nequ), zero(T))
+  _u = fill!(similar(meta.x0, nls_meta.nequ), zero(T))
+  _cx = fill!(similar(meta.x0, meta.nnln), zero(T))
+  _v = fill!(similar(meta.x0, meta.nvar), zero(T))
+  _w = fill!(similar(meta.x0, meta.nnln), zero(T))
+
+  adprep = ADModelPrep(adbackend, F, c, ψ, meta.x0, _Fx, _cx, _v, _w, _u)
+  ADNLSModel(
+    meta, nls_meta, counters, adbackend, adprep, F, clinrows, clincols, clinvals, c, ψ,
+    _Fx, _u, _cx, _v, _w,
+  )
 end
 
 ADNLSModel(
