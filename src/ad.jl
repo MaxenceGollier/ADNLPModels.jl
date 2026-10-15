@@ -64,7 +64,7 @@ function ADModelBackend(;
   jtprod_backend = reverse_backend
   jacobian_backend = forward_backend
   hessian_backend = second_order_backend
-  ghjvprod_backend = second_order_backend
+  ghjvprod_backend = forward_backend # scalar input α: forward mode
 
   return ADModelBackend(
     gradient_backend,

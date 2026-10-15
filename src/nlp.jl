@@ -17,13 +17,15 @@ mutable struct ADNLPModel{T, S, Si, ADB <: ADModelBackend, ADP <: ADModelPrep, O
 
   ℓ::LagrangianFunction{OF, CF}   # f(x) + yᵀc(x)
 
-  dc::DotConstraints{CF}          # yᵀc(x)
+  φ::ShiftedConstraint{CF}        # [c(x + α(g+v)); c(x + α(g-v))]
 
   # Preallocated vectors
   _cx::S
   _y::S
   _v::S
   _w::S
+  _g::S
+  _q::S
 end
 
 function ADNLPModel(
@@ -37,15 +39,17 @@ function ADNLPModel(
   c,
 ) where {T, S}
   ℓ = LagrangianFunction(f, c, meta.nnln)
-  dc = DotConstraints(c)
+  φ = ShiftedConstraint(c, meta.nnln)
 
   _cx = fill!(similar(meta.x0, meta.nnln), zero(T))
   _y = fill!(similar(meta.x0, meta.nnln), zero(T))
   _v = fill!(similar(meta.x0, meta.nvar), zero(T))
   _w = fill!(similar(meta.x0, meta.nnln), zero(T))
+  _g = fill!(similar(meta.x0, meta.nvar), zero(T))
+  _q = fill!(similar(meta.x0, 2 * meta.nnln), zero(T))
 
-  adprep = ADModelPrep(adbackend, f, c, ℓ, dc, meta.x0, _cx, _y, _v, _w)
-  ADNLPModel(meta, counters,adbackend, adprep, f, clinrows, clincols, clinvals, c, ℓ, dc, _cx, _y, _v, _w)
+  adprep = ADModelPrep(adbackend, f, c, ℓ, φ, meta.x0, _cx, _y, _v, _w)
+  ADNLPModel(meta, counters, adbackend, adprep, f, clinrows, clincols, clinvals, c, ℓ, φ, _cx, _y, _v, _w, _g, _q)
 end
 
 ADNLPModel(
@@ -808,9 +812,10 @@ function NLPModels.jth_hprod!(
     fill!(Hv, zero(T))
   else
     nlp._y .= 0
-    nlp.y[j-nlp.meta.nlin] .= 1
+    nlp._y[j - nlp.meta.nlin] = one(eltype(nlp._y))
     nlp._v .= v
-    DI.hvp!(nlp.dc, (Hv,), nlp.adprep.ghjvprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,), Cache(nlp._cx), Constant(nlp._y))
+    ob = zero(eltype(nlp._y))
+    DI.hvp!(nlp.ℓ, (Hv,), nlp.adprep.lhprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,), Cache(nlp._cx), Constant(nlp._y), Constant(ob))
   end
   return Hv
 end
@@ -827,9 +832,15 @@ function NLPModels.ghjvprod!(
   increment!(nlp, :neval_hprod)
   @views gHv[1:(nlp.meta.nlin)] .= zero(T)
   if nlp.meta.nnln > 0
-    nlp._y .= g
+    m = nlp.meta.nnln
+    nlp._g .= g
     nlp._v .= v
-    DI.hvp!(nlp.dc, view(gHv, (nlp.meta.nlin + 1): nlp.meta.ncon), nlp.adprep.ghjvprod_prep, nlp.adbackend.hprod_backend, x, (nlp._v,), Cache(nlp._cx), Constant(nlp._y))
+    α = zero(eltype(nlp._q))
+    DI.second_derivative!(
+      nlp.φ, nlp._q, nlp.adprep.ghjvprod_prep, nlp.adbackend.ghjvprod_backend,
+      α, Constant(x), Constant(nlp._g), Constant(nlp._v),
+    )
+    @views gHv[(nlp.meta.nlin + 1):end] .= (nlp._q[1:m] .- nlp._q[(m + 1):end]) ./ 4
   end
   return gHv
 end

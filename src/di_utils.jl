@@ -66,6 +66,44 @@ end
 (ψ::DotConstraints)(x, cx, u) = (ψ.c!(cx, x); dot(cx, u))
 
 """
+    ShiftedConstraint(c!, ncon)
+
+Callable computing, out of place,
+
+    φ(α, x, g, v) = [c(x + α (g + v)); c(x + α (g - v))]   (length `2 * ncon`).
+
+It is used to compute the directional second derivatives `gᵀ ∇²cᵢ(x) v` of
+`NLPModels.ghjvprod!` with a single call to `DI.second_derivative!`.
+
+DI has no operator for the mixed partial derivative of a vector-valued function, only for the
+second derivative of a function of one scalar `α`. We therefore rely on the polarization identity.
+See: https://en.wikipedia.org/wiki/Polarization_identity#Symmetric_bilinear_forms.
+For a symmetric bilinear form `B` with quadratic form `Q(d) = B(d, d)`,
+
+    B(u, w) = (Q(u + w) - Q(u - w)) / 4.
+
+Here `B(u, w) = uᵀ ∇²cᵢ(x) w` and
+`Qᵢ(d) = dᵀ ∇²cᵢ(x) d = d²/dα² cᵢ(x + α d)` at `α = 0`. Writing `q = ∂²φ/∂α²(0)` and splitting it
+into its two halves `q₊ = q[1:ncon]` and `q₋ = q[ncon+1:end]`, we get
+
+    gᵀ ∇²cᵢ(x) v = (q₊ᵢ - q₋ᵢ) / 4.
+"""
+struct ShiftedConstraint{C}
+  c!::C
+  ncon::Int
+end
+
+function (φ::ShiftedConstraint)(α, x, g, v)
+  z₊ = x .+ α .* (g .+ v)
+  z₋ = x .+ α .* (g .- v)
+  c₊ = similar(z₊, φ.ncon)
+  c₋ = similar(z₋, φ.ncon)
+  φ.c!(c₊, z₊)
+  φ.c!(c₋, z₋)
+  return vcat(c₊, c₋)
+end
+
+"""
     seeded_duals(tag, x0, nvar)
 
 Allocate a `Vector{ForwardDiff.Dual{tag, T, 1}}` of length `nvar` whose primal parts are

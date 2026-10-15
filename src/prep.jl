@@ -19,6 +19,7 @@ function ADModelPrep(
   c!::CF, 
   ℓ::LagrangianFunction{OF, CF}, 
   dc::DotConstraints{CF},
+  φ::ShiftedConstraint{CF},
   x::AbstractVector,
   cx::AbstractVector,
   y::AbstractVector,
@@ -35,7 +36,14 @@ function ADModelPrep(
   jprod_prep = DI.prepare_pushforward(c!, cx, adbackend.jprod_backend, x, (v,))
   jtprod_prep = DI.prepare_pullback(c!, cx, adbackend.jtprod_backend, x, (w,))
 
-  ghjvprod = DI.prepare_hvp(dc, adbackend.hprod_backend, x, (v,), Cache(cx), Constant(y))
+  # gᵀ ∇²cᵢ(x) v for all i, see `ShiftedConstraint`. `g` and `v` are both of the size of `x`.
+  ghjvprod = if length(cx) > 0
+    DI.prepare_second_derivative(
+      φ, adbackend.ghjvprod_backend, zero(eltype(x)), Constant(x), Constant(v), Constant(v),
+    )
+  else
+    nothing
+  end
 
   return ADModelPrep(
     gradient_prep,
