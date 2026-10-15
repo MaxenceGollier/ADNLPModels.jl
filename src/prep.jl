@@ -18,7 +18,6 @@ function ADModelPrep(
   f::OF, 
   c!::CF, 
   ℓ::LagrangianFunction{OF, CF}, 
-  dc::DotConstraints{CF},
   φ::ShiftedConstraint{CF},
   x::AbstractVector,
   cx::AbstractVector,
