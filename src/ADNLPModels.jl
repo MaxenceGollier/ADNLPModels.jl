@@ -31,10 +31,7 @@ include("sparsity_pattern.jl")
 include("sparse_jacobian.jl")
 include("sparse_hessian.jl")
 
-include("forward.jl")
-include("reverse.jl")
 include("enzyme.jl")
-include("predefined_backend.jl")
 include("nlp.jl")
 
 function ADNLPModel!(model::AbstractNLPModel; kwargs...)
